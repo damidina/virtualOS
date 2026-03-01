@@ -26,6 +26,11 @@ enum ConnectionMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum RemoteBackendKind: String {
+    case virtualOSHTTP
+    case aiRemoteWS
+}
+
 struct DiscoveredEndpoint: Identifiable, Hashable {
     let id: String
     let name: String
@@ -235,6 +240,11 @@ final class StreamViewModel: ObservableObject {
     private let discovery = BonjourDiscovery()
     private var cancellables: Set<AnyCancellable> = []
     private var timerTask: Task<Void, Never>?
+    private var remoteBackend: RemoteBackendKind = .virtualOSHTTP
+    private var wsTask: URLSessionWebSocketTask?
+    private var wsReceiveTask: Task<Void, Never>?
+    private var wsAuthed = false
+    private let wsMaximumMessageSize = 64 * 1024 * 1024
 
     init() {
         self.connectionMode =
@@ -296,6 +306,17 @@ final class StreamViewModel: ObservableObject {
 
         timerTask = Task { [weak self] in
             guard let self else { return }
+
+            if self.connectionMode == .remote {
+                self.remoteBackend = await self.detectRemoteBackend()
+                if self.remoteBackend == .aiRemoteWS {
+                    await self.runAIRemoteStreamLoop()
+                    return
+                }
+            } else {
+                self.remoteBackend = .virtualOSHTTP
+            }
+
             while !Task.isCancelled {
                 await self.fetchFrame()
                 try? await Task.sleep(for: .seconds(1))
@@ -307,12 +328,21 @@ final class StreamViewModel: ObservableObject {
         isStreaming = false
         timerTask?.cancel()
         timerTask = nil
+        teardownWebSocket()
         status = "Stopped"
         detail = ""
         addLog("stream stopped")
     }
 
     func pullSingleFrame() async {
+        if connectionMode == .remote, remoteBackend == .aiRemoteWS {
+            if wsTask == nil {
+                let connected = await connectAIRemoteWebSocket()
+                guard connected else { return }
+            }
+            await sendAIMessage(["type": "screenshot"])
+            return
+        }
         await fetchFrame()
     }
 
@@ -331,6 +361,8 @@ final class StreamViewModel: ObservableObject {
     }
 
     func onConnectionModeChanged() {
+        teardownWebSocket()
+        remoteBackend = .virtualOSHTTP
         if connectionMode == .remote {
             discovery.stop()
             discoveryStatus = "Remote mode (LAN discovery disabled)"
@@ -401,6 +433,33 @@ final class StreamViewModel: ObservableObject {
     }
 
     func testConnection() async {
+        if connectionMode == .remote {
+            if let statusURL = makeURL(path: "/api/status") {
+                var request = URLRequest(url: statusURL)
+                request.cachePolicy = .reloadIgnoringLocalCacheData
+                request.timeoutInterval = 3
+                applyAuthHeaders(to: &request)
+                do {
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    if let http = response as? HTTPURLResponse {
+                        lastHTTPStatus = http.statusCode
+                        if http.statusCode == 200,
+                           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                           obj["provider"] != nil
+                        {
+                            status = "Health OK"
+                            detail = "AI Remote reachable"
+                            remoteBackend = .aiRemoteWS
+                            addLog("health ok ai-remote \(statusURL.absoluteString)")
+                            return
+                        }
+                    }
+                } catch {
+                    addLog("api/status probe failed \(error.localizedDescription)")
+                }
+            }
+        }
+
         guard let url = makeURL(path: "/health") else {
             status = "Bad URL"
             detail = "Invalid connection settings"
@@ -687,6 +746,214 @@ final class StreamViewModel: ObservableObject {
         }
     }
 
+    private func detectRemoteBackend() async -> RemoteBackendKind {
+        guard connectionMode == .remote else { return .virtualOSHTTP }
+        let remoteHostHint = remoteURL.lowercased()
+        if remoteHostHint.contains("trycloudflare.com") {
+            addLog("detected backend ai-remote-ws (host hint)")
+            return .aiRemoteWS
+        }
+        guard let statusURL = makeURL(path: "/api/status") else { return .virtualOSHTTP }
+
+        var request = URLRequest(url: statusURL)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 3
+        applyAuthHeaders(to: &request)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                return .virtualOSHTTP
+            }
+            if
+                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                obj["provider"] != nil,
+                obj["tunnel"] != nil
+            {
+                addLog("detected backend ai-remote-ws")
+                return .aiRemoteWS
+            }
+        } catch {
+            addLog("backend detect failed \(error.localizedDescription)")
+        }
+        return .virtualOSHTTP
+    }
+
+    private func makeWebSocketURLForRemote() -> URL? {
+        var raw = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return nil }
+        if !raw.contains("://") {
+            raw = "https://\(raw)"
+        }
+        guard var components = URLComponents(string: raw) else { return nil }
+        components.scheme = (components.scheme == "https") ? "wss" : "ws"
+        components.path = "/ws"
+        components.query = nil
+        components.fragment = nil
+        return components.url
+    }
+
+    private func runAIRemoteStreamLoop() async {
+        let connected = await connectAIRemoteWebSocket()
+        guard connected else {
+            isStreaming = false
+            return
+        }
+
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+        }
+    }
+
+    private func connectAIRemoteWebSocket() async -> Bool {
+        teardownWebSocket()
+
+        guard let wsURL = makeWebSocketURLForRemote() else {
+            status = "Bad URL"
+            detail = "Invalid Remote URL"
+            addLog("ws connect failed bad-url")
+            return false
+        }
+
+        let token = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            status = "Missing key"
+            detail = "Enter secret key in Auth token"
+            addLog("ws connect failed missing key")
+            return false
+        }
+
+        let task = URLSession.shared.webSocketTask(with: wsURL)
+        task.maximumMessageSize = wsMaximumMessageSize
+        wsTask = task
+        wsAuthed = false
+        task.resume()
+        status = "Connecting..."
+        detail = "AI Remote WebSocket"
+        addLog("ws opening \(wsURL.absoluteString)")
+
+        wsReceiveTask = Task { [weak self] in
+            await self?.receiveAIRemoteMessages()
+        }
+
+        await sendAIMessage([
+            "type": "auth",
+            "key": token,
+        ])
+
+        for _ in 0..<30 {
+            if wsAuthed { return true }
+            if Task.isCancelled || !isStreaming { return false }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        status = "Auth failed"
+        detail = "AI Remote auth timeout"
+        addLog("ws auth timeout")
+        return false
+    }
+
+    private func receiveAIRemoteMessages() async {
+        guard let wsTask else { return }
+
+        while !Task.isCancelled {
+            do {
+                let message = try await wsTask.receive()
+                switch message {
+        case .string(let text):
+            await handleAIMessageText(text)
+        case .data(let data):
+            if let text = String(data: data, encoding: .utf8) {
+                await handleAIMessageText(text)
+            } else if let img = UIImage(data: data) {
+                image = img
+                status = "Live"
+                detail = ""
+                lastCaptureMode = "ai-remote-ws-binary"
+                addLog("ws binary screenshot bytes=\(data.count)")
+            }
+        @unknown default:
+            break
+                }
+            } catch {
+                if isStreaming {
+                    status = "Network error"
+                    detail = error.localizedDescription
+                    addLog("ws receive error \(error.localizedDescription)")
+                }
+                break
+            }
+        }
+    }
+
+    private func handleAIMessageText(_ text: String) async {
+        guard let data = text.data(using: .utf8) else { return }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        guard let type = obj["type"] as? String else { return }
+
+        switch type {
+        case "connected":
+            wsAuthed = true
+            status = "Live"
+            detail = "AI Remote connected"
+            lastCaptureMode = "ai-remote-ws"
+            addLog("ws connected+authed")
+            await sendAIMessage(["type": "live_start"])
+
+        case "screenshot":
+            if let b64 = obj["data"] as? String,
+               let pngData = Data(base64Encoded: b64),
+               let img = UIImage(data: pngData)
+            {
+                image = img
+                status = "Live"
+                detail = ""
+                lastCaptureMode = "ai-remote-ws"
+            }
+
+        case "live_started":
+            addLog("ws live stream started")
+
+        case "live_stopped":
+            addLog("ws live stream stopped")
+
+        case "error":
+            let message = (obj["message"] as? String) ?? "Unknown error"
+            if !wsAuthed {
+                status = "Auth failed"
+            } else {
+                status = "Remote error"
+            }
+            detail = message
+            addLog("ws error \(message)")
+
+        default:
+            break
+        }
+    }
+
+    private func sendAIMessage(_ payload: [String: Any]) async {
+        guard let wsTask else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let text = String(data: data, encoding: .utf8)
+        else { return }
+        do {
+            try await wsTask.send(.string(text))
+        } catch {
+            addLog("ws send error \(error.localizedDescription)")
+        }
+    }
+
+    private func teardownWebSocket() {
+        wsReceiveTask?.cancel()
+        wsReceiveTask = nil
+        wsAuthed = false
+        if let wsTask {
+            wsTask.cancel(with: .goingAway, reason: nil)
+        }
+        wsTask = nil
+    }
+
     private func makeURL(path: String, queryItems: [URLQueryItem] = []) -> URL? {
         switch connectionMode {
         case .auto, .direct:
@@ -795,7 +1062,7 @@ struct ContentView: View {
             }
 
             HStack(spacing: 8) {
-                SecureField("Auth token (Bearer)", text: $vm.authToken)
+                SecureField("Secret key / Auth token", text: $vm.authToken)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textFieldStyle(.roundedBorder)
