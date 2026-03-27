@@ -12,13 +12,14 @@ xcodegen generate
 ## Run
 
 ```bash
-# 1) Start server
-cd /Users/theone/Documents/GitHub/virtualOS
-python3 tools/virtualos_stream_server/server.py --host 0.0.0.0 --port 8899
-
-# 2) Open mac app project
+# Open mac app project
 open /Users/theone/Documents/GitHub/virtualOS/virtualOSRemoteMac/virtualOSRemoteMac.xcodeproj
 ```
+
+The app can now start the bundled local host server itself. On the host Mac, open the app and either:
+
+- click `Start Host`, or
+- just click `Start` while targeting `127.0.0.1:8899` and the app will auto-start the local host first
 
 In app:
 - Connection mode:
@@ -34,6 +35,7 @@ In app:
   - `Screen` for display capture (auto-picks display nearest/overlapping target app)
 - `Servers` menu shows discovered hosts and allows one-click selection.
 - Shortcut row is app-aware (Codex/Finder/Chrome/Terminal presets).
+- The bundled host runtime removes the normal Terminal requirement for local use.
 
 Private Cloudflare setup:
 - `/Users/theone/Documents/GitHub/virtualOS/tools/cloudflare/README.md`

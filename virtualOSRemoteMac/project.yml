@@ -1,0 +1,27 @@
+name: virtualOSRemoteMac
+options:
+  minimumXcodeGenVersion: 2.39.0
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.github.yep.virtualOSRemoteMac
+    MACOSX_DEPLOYMENT_TARGET: 14.0
+    SWIFT_VERSION: 5.0
+    DEVELOPMENT_TEAM: ""
+packages: {}
+targets:
+  virtualOSRemoteMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: App
+      - path: HostRuntime
+        buildPhase: resources
+    settings:
+      base:
+        INFOPLIST_FILE: App/Info.plist
+        PRODUCT_NAME: virtualOS Remote Mac
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+    scheme:
+      testTargets: []
