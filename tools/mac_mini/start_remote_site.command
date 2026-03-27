@@ -31,8 +31,8 @@ get_lan_ip() {
 cd "${ROOT_DIR}"
 
 echo "==> Starting virtualOS remote site on ${HOST}:${PORT}"
-echo "==> Target app: ${TARGET_APP}"
-python3 "${SERVER_SCRIPT}" --host "${HOST}" --port "${PORT}" --allow-app "${TARGET_APP}" &
+echo "==> Default target app in UI: ${TARGET_APP}"
+python3 "${SERVER_SCRIPT}" --host "${HOST}" --port "${PORT}" &
 SERVER_PID=$!
 
 cleanup() {

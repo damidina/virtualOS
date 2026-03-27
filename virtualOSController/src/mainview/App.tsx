@@ -318,6 +318,33 @@ function App() {
 		}
 	}
 
+	async function pullRepo(repo: RepoStatusEntry) {
+		const targetBaseUrl = normalizeBaseUrl(baseUrl);
+		if (!targetBaseUrl) {
+			addActivityEntry(`pull ${repo.name}: missing host`);
+			return;
+		}
+
+		setBusyAction(`pull ${repo.name}`);
+		try {
+			const response = await controllerRpc.request.control({
+				baseUrl: targetBaseUrl,
+				path: "/api/system/pull",
+				payload: { repo: repo.path },
+			});
+			addActivityEntry(
+				`pull ${repo.name}: ${response.status} ${summarizeResponse(response)}`,
+			);
+			await refreshSystemStatus();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "pull failed";
+			addActivityEntry(`pull ${repo.name}: ${message}`);
+		} finally {
+			setBusyAction(null);
+		}
+	}
+
 	function focusSelectedApp(nextApp?: string) {
 		const value = (nextApp ?? appName).trim();
 		if (!value) {
@@ -565,22 +592,31 @@ function App() {
 											key={repo.path}
 											className="flex items-center justify-between gap-3 text-sm"
 										>
-											<div>
+											<div className="min-w-0">
 												<div>{repo.name}</div>
 												<div className="mono text-xs text-paper/45">
 													{repo.branch || "detached"} {repo.headShort || ""}
 												</div>
 											</div>
-											<div
-												className={`repo-badge ${
-													repo.updateAvailable
-														? "repo-badge-warn"
-														: repo.ok
-															? "repo-badge-ok"
-															: "repo-badge-bad"
-												}`}
-											>
-												{repoSummary(repo)}
+											<div className="flex items-center gap-2">
+												<div
+													className={`repo-badge ${
+														repo.updateAvailable
+															? "repo-badge-warn"
+															: repo.ok
+																? "repo-badge-ok"
+																: "repo-badge-bad"
+													}`}
+												>
+													{repoSummary(repo)}
+												</div>
+												<button
+													className="button-secondary px-3 py-2 text-xs"
+													onClick={() => void pullRepo(repo)}
+													disabled={!repo.ok || repo.dirty}
+												>
+													Pull
+												</button>
 											</div>
 										</div>
 									))

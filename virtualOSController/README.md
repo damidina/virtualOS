@@ -7,7 +7,7 @@ Electrobun desktop controller for the existing `virtualOS` LAN remote host.
 - Connects to an existing host endpoint such as `http://192.168.2.196:8899`
 - Uses Electrobun RPC from the renderer to the Bun main process for `POST /control/*` and `GET /health`
 - Loads the live frame directly from `/frame.jpg`
-- Supports focus, typing, keyboard actions, click-to-control, and quick app presets from the host allowlist
+- Supports focus, typing, keyboard actions, click-to-control, safe open actions, and watched-repo status/pull
 
 ## Run
 

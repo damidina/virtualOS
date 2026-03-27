@@ -476,6 +476,50 @@ class RepoStatusMonitor:
                 "time": int(time.time()),
             }
 
+    def watched_repo_paths(self) -> list[str]:
+        with self._lock:
+            return [str(path) for path in self._repos]
+
+    def pull_repo(self, repo_ref: str) -> tuple[bool, dict]:
+        requested = repo_ref.strip()
+        if not requested:
+            return False, {"ok": False, "error": "missing repo"}
+
+        with self._lock:
+            repo_paths = [Path(item) for item in self._repos]
+
+        target: Path | None = None
+        for repo_path in repo_paths:
+            if requested == str(repo_path) or requested == repo_path.name:
+                target = repo_path
+                break
+
+        if target is None:
+            return False, {"ok": False, "error": f"repo '{requested}' is not watched"}
+
+        before = collect_repo_status(target, fetch_remote=True)
+        if not before.get("exists"):
+            return False, {"ok": False, "error": "repo missing", "repo": before}
+        if not before.get("ok"):
+            return False, {"ok": False, "error": before.get("error") or "repo not ready", "repo": before}
+        if before.get("dirty"):
+            return False, {"ok": False, "error": "repo has uncommitted changes", "repo": before}
+
+        upstream = str(before.get("upstream", "")).strip()
+        if not upstream:
+            return False, {"ok": False, "error": "repo has no upstream", "repo": before}
+
+        pull_ok, pull_out = run_git(target, ["pull", "--ff-only"], timeout_seconds=20.0)
+        after = collect_repo_status(target, fetch_remote=False)
+        self.refresh(fetch_remote=False)
+
+        return pull_ok, {
+            "ok": pull_ok,
+            "result": pull_out or ("already up to date" if before.get("behind", 0) == 0 else "pulled"),
+            "before": before,
+            "repo": after,
+        }
+
 
 REPO_STATUS_MONITOR = RepoStatusMonitor()
 
@@ -1502,6 +1546,7 @@ class Handler(BaseHTTPRequestHandler):
                         "/api/vm/status",
                         "/api/vm/logs",
                         "/api/system/status",
+                        "/api/system/pull",
                         "/frame.jpg",
                         "/control/open",
                         "/control/focus",
@@ -1648,6 +1693,12 @@ class Handler(BaseHTTPRequestHandler):
             self._write_json_obj(200 if ok else 400, {"ok": ok, "result": out})
             return
 
+        if path == "/api/system/pull":
+            repo_ref = str(payload.get("repo", "")).strip()
+            ok, result = REPO_STATUS_MONITOR.pull_repo(repo_ref)
+            self._write_json_obj(200 if ok else 400, result)
+            return
+
         if path == "/control/type":
             text = str(payload.get("text", ""))
             ok, out = control_type(text)
@@ -1748,7 +1799,7 @@ def main():
             print(f"Bonjour: {msg}")
 
     print(f"Serving on http://{args.host}:{args.port}")
-    print("Endpoints: /health, /debug, /vm/logs, /api/vm/*, /api/system/status, /frame.jpg, /control/*")
+    print("Endpoints: /health, /debug, /vm/logs, /api/vm/*, /api/system/*, /frame.jpg, /control/*")
     if REQUIRED_AUTH_TOKEN:
         print("Auth: enabled (Bearer token required for /debug, /frame.jpg, /control/*)")
     else:

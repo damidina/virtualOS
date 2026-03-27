@@ -10,6 +10,7 @@ This folder packages the Mac mini bootstrap and startup flow into the repo so it
 - Optional Homebrew, Cursor, and Tailscale install
 - Power settings to keep the machine reachable
 - LaunchAgent setup for running `start.sh` at login
+- LaunchAgent setup for running the remote host service at login
 
 ## Assumptions
 
@@ -37,6 +38,7 @@ If you prefer Finder double-click entrypoints instead of terminal commands:
 - `tools/mac_mini/one_click_remote.command`
 - `tools/mac_mini/setup_codex_access.command`
 - `tools/mac_mini/start_remote_site.command`
+- `tools/mac_mini/install_remote_host_agent.command`
 
 If you want to trust a new SSH public key at the same time:
 
@@ -76,6 +78,34 @@ EOF
 chmod 600 ~/.config/virtualos/start.env
 ```
 
+## Install Remote Host Startup
+
+If you want the remote host server to start automatically at login and restart if it dies:
+
+```bash
+chmod +x tools/mac_mini/install_remote_host_agent.sh
+./tools/mac_mini/install_remote_host_agent.sh
+```
+
+Finder click path:
+
+- `tools/mac_mini/install_remote_host_agent.command`
+
+That installer creates:
+
+- `~/Library/LaunchAgents/com.github.yep.virtualos.remotehost.plist`
+- `~/Library/Logs/virtualos-remote-host.log`
+
+The LaunchAgent uses:
+
+- `tools/mac_mini/start_remote_host_at_login.sh`
+- optional env: `~/.config/virtualos/remote_host.env`
+
+Default watched repos:
+
+- `~/Documents/GitHub/virtualOS`
+- `~/Documents/GitHub/ai-share`
+
 ## Manual Checks
 
 After bootstrap:
@@ -91,3 +121,4 @@ After bootstrap:
 - `brew install --cask cursor` installs Cursor, but you still need to sign in after install.
 - The LaunchAgent runs only for a logged-in Aqua session, which is required for `open` and `osascript`.
 - Keep secrets outside the repo. The startup password file lives in `~/.config/virtualos/start.env`.
+- The remote host env file, if used, lives in `~/.config/virtualos/remote_host.env`.
