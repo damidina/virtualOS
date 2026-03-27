@@ -1,0 +1,358 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		color-scheme: dark;
+		--ink: #0b1017;
+		--panel: rgba(11, 16, 23, 0.78);
+		--panel-edge: rgba(140, 161, 186, 0.16);
+		--paper: #f2efe7;
+		--muted: #9fb2c6;
+		--amber: #f6b655;
+		--amber-strong: #ffcb73;
+		--cyan: #45d7d0;
+		--rose: #ff8e8e;
+	}
+
+	html,
+	body,
+	#root {
+		min-height: 100%;
+	}
+
+	body {
+		margin: 0;
+		background:
+			radial-gradient(circle at top left, rgba(246, 182, 85, 0.2), transparent 24rem),
+			radial-gradient(circle at top right, rgba(69, 215, 208, 0.16), transparent 26rem),
+			linear-gradient(180deg, #0a0f16 0%, #121a24 100%);
+		color: var(--paper);
+		font-family:
+			"Avenir Next", "Neue Haas Grotesk Text Pro", "Segoe UI", sans-serif;
+	}
+
+	button,
+	input,
+	textarea,
+	select {
+		font: inherit;
+	}
+}
+
+@layer components {
+	.bg-ink {
+		background: transparent;
+	}
+
+	.text-paper {
+		color: var(--paper);
+	}
+
+	.panel {
+		border: 1px solid var(--panel-edge);
+		background: var(--panel);
+		backdrop-filter: blur(22px);
+		border-radius: 1.6rem;
+		box-shadow:
+			0 24px 60px rgba(0, 0, 0, 0.32),
+			inset 0 1px 0 rgba(255, 255, 255, 0.03);
+	}
+
+	.eyebrow {
+		margin: 0 0 0.35rem;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.22em;
+		text-transform: uppercase;
+		color: var(--amber-strong);
+	}
+
+	.headline {
+		margin: 0;
+		font-size: clamp(2.2rem, 4vw, 3.9rem);
+		line-height: 0.98;
+		letter-spacing: -0.04em;
+	}
+
+	.subhead {
+		margin: 0.7rem 0 0;
+		max-width: 44rem;
+		color: rgba(242, 239, 231, 0.72);
+		font-size: 1rem;
+	}
+
+	.status-stack {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.7rem;
+	}
+
+	.status-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.7rem 1rem;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		font-size: 0.72rem;
+		font-weight: 700;
+	}
+
+	.status-pill-online {
+		background: rgba(69, 215, 208, 0.12);
+		color: #aef9f5;
+	}
+
+	.status-pill-checking {
+		background: rgba(246, 182, 85, 0.12);
+		color: #ffe1af;
+	}
+
+	.status-pill-offline {
+		background: rgba(255, 142, 142, 0.12);
+		color: #ffc0c0;
+	}
+
+	.status-dot {
+		width: 0.6rem;
+		height: 0.6rem;
+		border-radius: 999px;
+		background: currentColor;
+		box-shadow: 0 0 14px currentColor;
+	}
+
+	.section-label {
+		margin: 0 0 0.85rem;
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: rgba(242, 239, 231, 0.56);
+	}
+
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+		font-size: 0.9rem;
+		color: rgba(242, 239, 231, 0.78);
+	}
+
+	.field input,
+	.field textarea,
+	.field select {
+		border: 1px solid rgba(160, 183, 209, 0.18);
+		border-radius: 1rem;
+		background: rgba(6, 9, 14, 0.56);
+		color: var(--paper);
+		padding: 0.9rem 1rem;
+		outline: none;
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+	}
+
+	.field input:focus,
+	.field textarea:focus,
+	.field select:focus {
+		border-color: rgba(69, 215, 208, 0.5);
+		box-shadow:
+			0 0 0 3px rgba(69, 215, 208, 0.12),
+			inset 0 1px 0 rgba(255, 255, 255, 0.04);
+	}
+
+	.inline-field {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	.suffix {
+		color: rgba(242, 239, 231, 0.48);
+		font-size: 0.82rem;
+		text-transform: uppercase;
+		letter-spacing: 0.14em;
+	}
+
+	.button-row,
+	.button-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.8rem;
+	}
+
+	.button-grid > button {
+		flex: 1 1 10rem;
+	}
+
+	.button-primary,
+	.button-secondary,
+	.chip {
+		border: 1px solid transparent;
+		border-radius: 999px;
+		padding: 0.85rem 1.05rem;
+		cursor: pointer;
+		transition:
+			transform 160ms ease,
+			border-color 160ms ease,
+			background 160ms ease,
+			box-shadow 160ms ease;
+	}
+
+	.button-primary:hover,
+	.button-secondary:hover,
+	.chip:hover,
+	.frame-shell:hover {
+		transform: translateY(-1px);
+	}
+
+	.button-primary {
+		background: linear-gradient(135deg, var(--amber) 0%, #ffdc99 100%);
+		color: #23170a;
+		font-weight: 700;
+		box-shadow: 0 12px 30px rgba(246, 182, 85, 0.24);
+	}
+
+	.button-secondary,
+	.chip {
+		background: rgba(255, 255, 255, 0.04);
+		border-color: rgba(160, 183, 209, 0.16);
+		color: var(--paper);
+	}
+
+	.chip-cloud {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.7rem;
+	}
+
+	.chip-active {
+		border-color: rgba(69, 215, 208, 0.56);
+		background: rgba(69, 215, 208, 0.14);
+		color: #baf6f3;
+	}
+
+	.detail-card {
+		border: 1px solid rgba(160, 183, 209, 0.12);
+		background: rgba(0, 0, 0, 0.18);
+		border-radius: 1.25rem;
+		padding: 1rem;
+	}
+
+	.metric-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.8rem;
+		margin-bottom: 0.8rem;
+	}
+
+	.metric-label {
+		display: block;
+		font-size: 0.72rem;
+		color: rgba(242, 239, 231, 0.45);
+		text-transform: uppercase;
+		letter-spacing: 0.14em;
+		margin-bottom: 0.2rem;
+	}
+
+	.frame-shell {
+		position: relative;
+		flex: 1;
+		width: 100%;
+		border: 1px solid rgba(160, 183, 209, 0.14);
+		border-radius: 1.4rem;
+		overflow: hidden;
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent),
+			#030507;
+		padding: 0;
+		cursor: crosshair;
+	}
+
+	.frame-image {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #020305;
+	}
+
+	.frame-overlay {
+		position: absolute;
+		inset: auto 1rem 1rem 1rem;
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.9rem 1rem;
+		border-radius: 1rem;
+		background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(12, 19, 28, 0.42));
+		color: rgba(242, 239, 231, 0.78);
+		font-size: 0.82rem;
+		letter-spacing: 0.02em;
+	}
+
+	.composer {
+		min-height: 10rem;
+		resize: vertical;
+		width: 100%;
+	}
+
+	.activity-feed {
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+		max-height: 22rem;
+		overflow: auto;
+	}
+
+	.activity-line {
+		font-family:
+			"Iosevka Term", "SFMono-Regular", "SF Mono", "IBM Plex Mono",
+			monospace;
+		font-size: 0.82rem;
+		line-height: 1.45;
+		color: rgba(242, 239, 231, 0.8);
+	}
+
+	.mono {
+		font-family:
+			"Iosevka Term", "SFMono-Regular", "SF Mono", "IBM Plex Mono",
+			monospace;
+	}
+
+	.orb {
+		position: absolute;
+		filter: blur(90px);
+		opacity: 0.34;
+		border-radius: 999px;
+	}
+
+	.orb-amber {
+		width: 20rem;
+		height: 20rem;
+		top: -5rem;
+		left: -2rem;
+		background: rgba(246, 182, 85, 0.75);
+	}
+
+	.orb-cyan {
+		width: 26rem;
+		height: 26rem;
+		right: -6rem;
+		top: 12rem;
+		background: rgba(69, 215, 208, 0.42);
+	}
+
+	.grid-mask {
+		position: absolute;
+		inset: 0;
+		background-image:
+			linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+		background-size: 42px 42px;
+		mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent);
+	}
+}
