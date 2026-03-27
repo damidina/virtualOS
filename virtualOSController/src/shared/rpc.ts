@@ -24,6 +24,39 @@ export type RemoteControlRequest = {
 	payload?: Record<string, unknown>;
 };
 
+export type RemoteGetRequest = {
+	baseUrl: string;
+	path: string;
+};
+
+export type RepoStatusEntry = {
+	name: string;
+	path: string;
+	exists: boolean;
+	ok: boolean;
+	branch: string;
+	head: string;
+	headShort: string;
+	upstream: string;
+	upstreamHead: string;
+	upstreamHeadShort: string;
+	dirty: boolean;
+	ahead: number;
+	behind: number;
+	updateAvailable: boolean;
+	error: string;
+	fetched: boolean;
+};
+
+export type SystemStatusResponse = {
+	ok: boolean;
+	monitorStatus: string;
+	pollIntervalSeconds: number;
+	lastCheckedAt: number;
+	repos: RepoStatusEntry[];
+	time: number;
+};
+
 export type ControllerRPC = {
 	bun: RPCSchema<{
 		requests: {
@@ -33,6 +66,10 @@ export type ControllerRPC = {
 			};
 			control: {
 				params: RemoteControlRequest;
+				response: RemoteJsonResponse;
+			};
+			getJson: {
+				params: RemoteGetRequest;
 				response: RemoteJsonResponse;
 			};
 		};

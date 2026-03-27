@@ -249,6 +249,33 @@
 		margin-bottom: 0.8rem;
 	}
 
+	.repo-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		padding: 0.45rem 0.8rem;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+
+	.repo-badge-ok {
+		background: rgba(69, 215, 208, 0.12);
+		color: #baf6f3;
+	}
+
+	.repo-badge-warn {
+		background: rgba(246, 182, 85, 0.16);
+		color: #ffe0a8;
+	}
+
+	.repo-badge-bad {
+		background: rgba(255, 142, 142, 0.14);
+		color: #ffc4c4;
+	}
+
 	.metric-label {
 		display: block;
 		font-size: 0.72rem;

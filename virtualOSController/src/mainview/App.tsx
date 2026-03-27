@@ -4,6 +4,8 @@ import type {
 	CaptureSource,
 	RemoteHealthResponse,
 	RemoteJsonResponse,
+	RepoStatusEntry,
+	SystemStatusResponse,
 } from "../shared/rpc";
 
 const STORAGE_KEY = "virtualos-controller.config";
@@ -23,6 +25,11 @@ type HealthState =
 	| { status: "checking"; data: null; error: string | null }
 	| { status: "online"; data: RemoteHealthResponse; error: null }
 	| { status: "offline"; data: null; error: string };
+
+type SystemState =
+	| { status: "loading"; data: null; error: string | null }
+	| { status: "ready"; data: SystemStatusResponse; error: null }
+	| { status: "error"; data: null; error: string };
 
 function readSavedConfig(): SavedConfig {
 	try {
@@ -106,10 +113,30 @@ function summarizeResponse(response: RemoteJsonResponse): string {
 	return response.ok ? "ok" : "no body";
 }
 
+function repoSummary(repo: RepoStatusEntry): string {
+	if (!repo.exists) {
+		return "missing";
+	}
+	if (!repo.ok) {
+		return repo.error || "error";
+	}
+	if (repo.behind > 0) {
+		return `behind ${repo.behind}`;
+	}
+	if (repo.dirty) {
+		return "dirty";
+	}
+	if (repo.ahead > 0) {
+		return `ahead ${repo.ahead}`;
+	}
+	return "up-to-date";
+}
+
 function App() {
 	const initialConfig = readSavedConfig();
 	const [baseUrl, setBaseUrl] = useState(initialConfig.baseUrl);
 	const [appName, setAppName] = useState(initialConfig.appName);
+	const [openTarget, setOpenTarget] = useState("");
 	const [source, setSource] = useState<CaptureSource>(initialConfig.source);
 	const [intervalMs, setIntervalMs] = useState(initialConfig.intervalMs);
 	const [draftText, setDraftText] = useState("");
@@ -125,11 +152,18 @@ function App() {
 		data: null,
 		error: null,
 	});
+	const [systemState, setSystemState] = useState<SystemState>({
+		status: "loading",
+		data: null,
+		error: null,
+	});
 	const requestedAtRef = useRef(0);
 	const frameUrl = buildFrameUrl(baseUrl, appName, source, frameNonce);
 
 	const allowedApps =
 		healthState.status === "online" ? healthState.data.allowedApps : [];
+	const repoStatuses =
+		systemState.status === "ready" ? systemState.data.repos : [];
 
 	useEffect(() => {
 		const payload: SavedConfig = {
@@ -191,6 +225,51 @@ function App() {
 		const timer = window.setInterval(() => {
 			void refreshHealth();
 		}, 6000);
+		return () => window.clearInterval(timer);
+	}, [baseUrl]);
+
+	async function refreshSystemStatus() {
+		const targetBaseUrl = normalizeBaseUrl(baseUrl);
+		if (!targetBaseUrl) {
+			setSystemState({
+				status: "error",
+				data: null,
+				error: "enter a host first",
+			});
+			return;
+		}
+
+		setSystemState({ status: "loading", data: null, error: null });
+
+		try {
+			const response = await controllerRpc.request.getJson({
+				baseUrl: targetBaseUrl,
+				path: "/api/system/status",
+			});
+			if (!response.ok || !response.data || typeof response.data !== "object") {
+				throw new Error(`system status failed with ${response.status}`);
+			}
+			setSystemState({
+				status: "ready",
+				data: response.data as SystemStatusResponse,
+				error: null,
+			});
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "system status failed";
+			setSystemState({
+				status: "error",
+				data: null,
+				error: message,
+			});
+		}
+	}
+
+	useEffect(() => {
+		void refreshSystemStatus();
+		const timer = window.setInterval(() => {
+			void refreshSystemStatus();
+		}, 15000);
 		return () => window.clearInterval(timer);
 	}, [baseUrl]);
 
@@ -267,6 +346,26 @@ function App() {
 				});
 			}
 		})();
+	}
+
+	function openTargetValue(nextTarget?: string) {
+		const target = (nextTarget ?? openTarget).trim();
+		if (!target) {
+			addActivityEntry("open skipped: target is empty");
+			return;
+		}
+
+		const payload = /^https?:\/\//i.test(target)
+			? { url: target }
+			: target.startsWith("/") || target.startsWith("~")
+				? { path: target }
+				: { app: target };
+
+		if (!nextTarget) {
+			setOpenTarget(target);
+		}
+
+		void runControlAction(`open ${target}`, "/control/open", payload);
 	}
 
 	function clickFrame(event: React.MouseEvent<HTMLButtonElement>) {
@@ -456,6 +555,52 @@ function App() {
 								)}
 							</div>
 						</div>
+
+						<div className="detail-card">
+							<p className="section-label">Repo updates</p>
+							<div className="space-y-2">
+								{repoStatuses.length ? (
+									repoStatuses.map((repo) => (
+										<div
+											key={repo.path}
+											className="flex items-center justify-between gap-3 text-sm"
+										>
+											<div>
+												<div>{repo.name}</div>
+												<div className="mono text-xs text-paper/45">
+													{repo.branch || "detached"} {repo.headShort || ""}
+												</div>
+											</div>
+											<div
+												className={`repo-badge ${
+													repo.updateAvailable
+														? "repo-badge-warn"
+														: repo.ok
+															? "repo-badge-ok"
+															: "repo-badge-bad"
+												}`}
+											>
+												{repoSummary(repo)}
+											</div>
+										</div>
+									))
+								) : (
+									<p className="text-sm text-paper/60">
+										{systemState.status === "error"
+											? systemState.error
+											: "No watched repos yet."}
+									</p>
+								)}
+							</div>
+							<div className="mt-3">
+								<button
+									className="button-secondary"
+									onClick={() => void refreshSystemStatus()}
+								>
+									Refresh repo status
+								</button>
+							</div>
+						</div>
 					</section>
 
 					<section className="panel flex min-h-[720px] flex-col gap-4 p-4">
@@ -547,6 +692,27 @@ function App() {
 									}
 								>
 									Command+V
+								</button>
+							</div>
+						</div>
+
+						<div className="detail-card">
+							<p className="section-label">Open</p>
+							<input
+								value={openTarget}
+								onChange={(event) => setOpenTarget(event.target.value)}
+								placeholder="App, https:// URL, or /absolute/path"
+								className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-paper outline-none"
+							/>
+							<div className="button-row mt-3">
+								<button className="button-primary" onClick={() => openTargetValue()}>
+									Open target
+								</button>
+								<button
+									className="button-secondary"
+									onClick={() => openTargetValue(appName)}
+								>
+									Open app
 								</button>
 							</div>
 						</div>

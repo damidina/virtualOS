@@ -97,6 +97,7 @@ const controllerRpc = BrowserView.defineRPC<ControllerRPC>({
 				const response = await requestRemoteJson(baseUrl, "/health");
 				return asHealthResponse(response);
 			},
+			getJson: async ({ baseUrl, path }) => requestRemoteJson(baseUrl, path),
 			control: async ({ baseUrl, path, payload }: RemoteControlRequest) =>
 				requestRemoteJson(baseUrl, path, {
 					method: "POST",
